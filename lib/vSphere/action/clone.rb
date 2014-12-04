@@ -32,6 +32,7 @@ module VagrantPlugins
             customization_info = get_customization_spec_info_by_name connection, machine
 
             spec[:customization] = get_customization_spec(machine, customization_info) unless customization_info.nil?
+            add_custom_address_type(template, spec, config.addressType) unless config.addressType.nil?
             add_custom_mac(template, spec, config.mac) unless config.mac.nil?
             add_custom_vlan(template, dc, spec, config.vlan) unless config.vlan.nil?
             add_custom_memory(spec, config.memory_mb) unless config.memory_mb.nil?
@@ -137,6 +138,15 @@ module VagrantPlugins
           else
             dc.vmFolder.traverse(config.vm_base_path, RbVmomi::VIM::Folder, create = true)
           end
+        end
+
+        def add_custom_address_type(template, spec, addressType)
+          spec[:config][:deviceChange] = []
+          config = template.config
+          card = config.hardware.device.grep(RbVmomi::VIM::VirtualEthernetCard).first or fail Errors::VSphereError, :missing_network_card
+          card.addressType = addressType
+          card_spec = { :deviceChange => [ { :operation => :edit, :device => card } ] }
+          template.ReconfigVM_Task(:spec => card_spec).wait_for_completion
         end
 
         def add_custom_mac(template, spec, mac)
